@@ -22,12 +22,26 @@
 const fs = require("fs");
 const path = require("path");
 
+// Load .env.local for API keys (Next.js only auto-loads this in its own runtime)
+const envPath = path.join(__dirname, "..", ".env.local");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const idx = trimmed.indexOf("=");
+    if (idx === -1) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (!process.env[key] && value) process.env[key] = value;
+  }
+}
+
 // ============================================================
 // Configuration
 // ============================================================
 
 const CONFIG = {
-  apiUrl: "https://api.openai.com/v1/audio/speech",
+  apiUrl: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1") + "/audio/speech",
   model: "gpt-4o-mini-tts",
   // "nova" is warm and friendly - good for children's content
   // alternatives: "alloy" (neutral), "shimmer" (expressive), "coral" (warm)
@@ -48,7 +62,7 @@ const CONFIG = {
 // ============================================================
 
 function loadVocabulary() {
-  const mapPath = path.join(__dirname, "..", "config", "vocabulary-map.json");
+  const mapPath = path.join(__dirname, "..", "src", "config", "vocabulary-map.json");
   const data = JSON.parse(fs.readFileSync(mapPath, "utf-8"));
 
   const words = new Map();

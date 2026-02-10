@@ -1,107 +1,104 @@
-# LinguaPlay - AI Agent Configuration Files
+# LinguaPlay
+
+AI-Driven Children's English Immersive Learning Game
 
 ## Overview
 
-This package contains all AI/data configuration files for the LinguaPlay MVP (Little Kitchen scene). These files are designed to be used with **Claude Code** or any AI-assisted development workflow to build the full Next.js application.
+LinguaPlay is an AI-powered immersive English learning app for preschool children (ages 3-7). Built on Krashen's Comprehensible Input Hypothesis and i+1 theory, children naturally acquire English through interactive game scenes. The MVP features a single **Little Kitchen** scene with 63 vocabulary items.
 
-## File Structure
+## Tech Stack
 
-```
-linguaplay/
-├── config/
-│   └── vocabulary-map.json      # Core data: all vocabulary, sprites, difficulty tiers
-├── scripts/
-│   └── generate-tts.js          # Batch TTS generator (run before first deploy)
-├── api/
-│   ├── tts-route.ts             # Next.js API: /api/tts (sentence TTS with caching)
-│   └── agent-orchestrate-route.ts # Next.js API: /api/agent/orchestrate (AI brain)
-├── agent/
-│   └── system-prompt.yaml       # Agent system prompt + JSON schema (reference doc)
-└── README.md                    # This file
-```
+- **Framework:** Next.js 14 (App Router, TypeScript, Tailwind CSS)
+- **Game Rendering:** PixiJS
+- **State Management:** Zustand
+- **Audio:** Howler.js + OpenAI TTS
+- **AI Agent:** Claude Haiku / GPT-4o-mini
+- **Animation:** Lottie (.lottie files)
 
-## How to Use with Claude Code
+## Getting Started
 
-### Step 1: Set up Next.js project
+### 1. Install dependencies
 
-Tell Claude Code:
-```
-Create a Next.js 14 project with TypeScript, Tailwind CSS, and the App Router.
-Install these dependencies: @anthropic-ai/sdk, zustand, howler, pixi.js
+```bash
+npm install
 ```
 
-### Step 2: Copy files into project
+### 2. Configure environment variables
 
-```
-config/vocabulary-map.json    → src/config/vocabulary-map.json
-api/tts-route.ts              → src/app/api/tts/route.ts
-api/agent-orchestrate-route.ts → src/app/api/agent/orchestrate/route.ts
+Copy `.env.local` and fill in your API keys:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-xxxxx    # For AI Agent orchestration
+OPENAI_API_KEY=sk-xxxxx           # For TTS audio generation
 ```
 
-### Step 3: Generate word-level audio
+### 3. Generate word-level audio (optional)
 
 ```bash
 export OPENAI_API_KEY=sk-xxxxx
 node scripts/generate-tts.js
-# Audio files saved to public/audio/words/ and public/audio/sentences/
 ```
 
-### Step 4: Build the game
+Audio files will be saved to `public/audio/words/` and `public/audio/sentences/`.
 
-Tell Claude Code to reference these files and the PRD document when building:
-- The sprite sheet renderer (reads sprite_position from vocabulary-map.json)
-- The game canvas component (uses PixiJS or React Canvas)
-- The session state manager (Zustand store)
-- The orchestration client (calls /api/agent/orchestrate)
+### 4. Start development server
 
-## Key Design Decisions
+```bash
+npm run dev
+```
 
-### Vocabulary Map (vocabulary-map.json)
-- **63 items** mapped from the actual sprite sheet (8x8 grid, 128px cells)
-- Each item has `sprite_position: [row, col]` for sprite sheet extraction
-- **5 difficulty tiers** define the learning progression
-- `semantic_cluster` enables the Agent to group related words
-- `compatible_actions` and `compatible_adjectives` constrain valid sentence generation
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### TTS Strategy
-- **Word-level**: Pre-generated offline via `generate-tts.js` (one-time cost ~$0.01)
-- **Sentence-level**: Generated on-demand via `/api/tts` with MD5 hash caching
-- **Voice**: OpenAI `nova` at 0.85x speed with child-friendly instructions
-- Cache hit rate expected >70% after first week of usage per user
+## Project Structure
 
-### Agent Orchestration
-- **Model**: Claude Haiku 4.5 (Anthropic) or GPT-4o-mini (OpenAI) - both cost-optimized
-- **Call frequency**: ~6-8 calls per 10-minute session (batch of 3-5 instructions per call)
-- **Estimated cost**: $0.001-0.003 per session
-- **Fallback**: If Agent fails, pre-built safe instructions using only known words
-- **Validation**: Every Agent response is parsed and validated against vocabulary map
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── tts/route.ts              # Sentence-level TTS with caching
+│   │   └── agent/orchestrate/route.ts # AI Agent orchestration endpoint
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── globals.css
+├── config/
+│   └── vocabulary-map.json           # 63 vocabulary items, sprites, difficulty tiers
+├── types/
+│   └── game.ts                       # Shared type definitions
+└── lib/                              # Utility functions
 
-### Sprite Sheet
-- Source: `food-and-utensil.png` (uploaded by user)
-- Grid: 8 columns × 8 rows, each cell ~128×128px
-- Items are referenced by `sprite_position: [row, col]` in vocabulary map
-- Frontend should extract individual sprites at runtime using Canvas or CSS background-position
+public/
+├── assets/kitchen/                   # Sprite sheet, background, Lottie animations
+├── audio/words/                      # Pre-generated word audio (via generate-tts.js)
+├── audio/sentences/                  # Pre-generated sentence audio
+└── audio/cache/                      # Runtime TTS cache
 
-## Environment Variables
+scripts/
+└── generate-tts.js                   # Batch TTS audio generator
 
-```env
-# Required: at least one AI provider
-ANTHROPIC_API_KEY=sk-ant-xxxxx    # For Agent orchestration (Claude Haiku)
-OPENAI_API_KEY=sk-xxxxx           # For TTS + optional Agent fallback
-
-# Database (for user model persistence)
-DATABASE_URL=postgresql://...
+docs/
+├── LinguaPlay_PRD_v1.0.md           # Product Requirements Document
+└── system-prompt.yaml                # AI Agent system prompt reference
 ```
 
 ## API Endpoints
 
 ### POST /api/agent/orchestrate
-Request body: ChildState object
-Response: { success, instructions: GameInstruction[], meta }
+
+Generates next batch of game instructions based on child's learning state.
+
+- **Input:** `ChildState` object (known_words, accuracy, session duration, etc.)
+- **Output:** 3-5 `GameInstruction` objects with interaction types, hints, and feedback
 
 ### POST /api/tts
-Request body: { text: string, speed?: number }
-Response: audio/mpeg binary stream
 
-### GET /api/tts?text=Hello+world
-Response: audio/mpeg binary stream
+Generates sentence-level TTS audio with MD5 hash caching.
+
+- **Input:** `{ text: string, speed?: number }`
+- **Output:** audio/mpeg stream
+
+## Key Design Decisions
+
+- **i+1 Principle:** Each instruction contains at most 1 new word
+- **TTS Strategy:** Word-level pre-generated (~$0.01), sentence-level on-demand with caching (>70% hit rate)
+- **Agent Cost:** ~$0.001-0.003 per 10-minute session using Haiku/4o-mini
+- **Fallback:** Safe instructions using only known words if Agent fails
